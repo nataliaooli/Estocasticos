@@ -7,7 +7,7 @@ pacman::p_load(tidyverse, MASS, quantmod)
 # 1 ####
 
 dados <- read.delim("dados.txt", sep =";")[,-c(5,6,7)]
-dados$Precipitacao <- round(dados$Precipitacao)
+dados$Precipitacao <- as.numeric(dados$Precipitacao)
 dados <- dados %>% na.omit()
 
 # > a ####
@@ -28,6 +28,11 @@ elementos <- cut(dados$Precipitacao, breaks = 5, labels  = c("1","2","3","4","5"
 
 plot(as.numeric(elementos))
 
+(elementos <- cut(dados$Precipitacao, breaks = c(0,4,26,56,86,131), labels = c("1","2","3","4","5"), levels = labels))
+(elementos <- cut(dados$Precipitacao, breaks = c(0.0,4.0,24.0,54.0,80.0,131.0), 
+                  labels = c("1","2","3","4","5"), levels = labels,
+                  include.lowest = T))
+
 # > b ####
 
 # proc1$Data <- as.Date(proc1$Data, format = "%d/%m/%Y")
@@ -42,7 +47,7 @@ P1 <- createSequenceMatrix(estados)
 P1
 
 Fit = markovchainFit(data = estados,confidencelevel = 0.95)
-Fit
+Fit$estimate
 
 mc = Fit$estimate
 summary(mc)
@@ -53,55 +58,20 @@ steadyStates(mc)
 
 # > c ####
 (real <- as.vector(tail(estados, n=10)))
-(pred <- predict(mc,newdata = c("1","1"),n.ahead = 10))
+(pred <- predict(mc,newdata = c("1","1"),n.ahead = 1000))
 
 table(real, pred)
 
 # 2 ####
 
-BBAS3 <- quantmod::getSymbols("BBAS3.SA", src = "yahoo", auto.assign = FALSE,
-                              from = '2023-01-01', 
-                              to = '2023-12-31', return.class = 'xts')
+BBAS3 <- as.data.frame(quantmod::getSymbols("BBAS3.SA", src = "yahoo", auto.assign = FALSE,
+                                            from = '2023-01-01', 
+                                            to = '2023-12-31', return.class = 'xts')) %>% 
+  mutate(t = seq(1,248,1))
+
 BB=BBAS3$BBAS3.SA.Close %>% as.vector()
 
-plot(BB, type="l")
-
-###################################################
-
-#processo de Poisson
-
-#uniforme
-n=100
-t_max=1
-T_de_chegada=sort(runif(n,min=0, max = t_max))
-
-tempo=0.25
-sum(T_de_chegada<tempo)
-N_tempo=sum(T_de_chegada<tempo)
-
-
-## processo
-plot(T_de_chegada, 1:n, type="l")
-
-
-#exp
-taxa=1/10
-(T_entre_chegadas=rexp(n,taxa))
-(T_de_chegadas=cumsum(T_entre_chegadas))
-
-
-## Poisson
-incremento=1/100
-tempos=seq(0,10,by=incremento)
-n=length(tempos)
-taxa=1
-
-N=c(0,cumsum(rpois(n-1, lambda=taxa*incremento)))
-length(N)
-
-plot(tempos, N, type="l")
-
-
+plot(BBAS3$t, BB, type="l", xlim = c(1,248))
 
 # > a ####
 
@@ -111,10 +81,9 @@ simulatebrown <-  function(n,h) {
   incrementos = (rnorm(n, 0, sd= sqrt(h)))
   B= c(0, cumsum(incrementos))
   return(list(mb = B, tempos= times))
-  
 }
 
-a <- simulatebrown(n=248, h=0.1)
+a <- simulatebrown(n=248, h=1/248)
 
 plot(a$tempos, a$mb, type="l")
 
@@ -138,32 +107,50 @@ pdisc <- function(tempo, historico, taxa, processo){
   return(xtk)
 }
 
-pdisc(tempo = seq(0,1,.002), historico = BB, taxa = 0.5, processo = rpois(248,1))
+pdisc(tempo = seq(0,1,1/248), historico = BB, taxa = 0.5, processo = rpois(248,1))
 
 # > c ####
 
-# Browniano
-theoretical_process_brownian <- function(theta, observed_data) {
-  n <- length(observed_data)
-  time_points <- seq(0, 1, length.out = n)
+# Browniano e poisson, tem que ser definido no parâmetro tipo qual processo será usado
+# Caso seja utilizado o processo de Poisson, é necessário declarar o lambda
+
+processo_simulado <- function(theta, dado_observado, tipo = "Browniano", lambda=1) {
+  n <- length(dado_observado)
+  h <- 1/n
+  tempo <- seq(0, 1, length.out = n)
   result <- numeric(n)
+  if(tipo == "Browniano"){
+    ruido = rnorm(1)
+  }
+  if(tipo == "Poisson"){
+    ruido = rpois(1,lambda = lambda*(n*h))
+  }
   for (k in 2:n) {
-    result[k] <- result[k - 1] - theta * sum(observed_data[1:(k - 1)] * diff(time_points[1:(k - 1)])) + rnorm(1)
+    result[k] <- result[k - 1] - theta * sum(dado_observado[1:(k - 1)] * h) + ruido
   }
   return(result)
 }
 
-# Função para calcular a soma dos quadrados dos resíduos para o Movimento Browniano
-sum_of_squares_brownian <- function(theta, observed_data) {
-  model_data <- theoretical_process_brownian(theta, observed_data)
-  residuals <- observed_data - model_data
+# Função para calcular a soma dos quadrados dos resíduos
+soma_de_quadrados <- function(theta, dado_observado, tipo = "Browniano", lambda=1) {
+  modelo_simulado <- processo_simulado(theta, dado_observado, tipo, lambda=1)
+  residuals <- dado_observado - modelo_simulado
   return(sum(residuals^2))
 }
 
 # Estimação do parâmetro theta para o Movimento Browniano
 set.seed(1)
-theta_hat_MB <- optimize(f = sum_of_squares_brownian, interval = c(0, 5), observed_data = as.numeric(BB), tol = .01)$minimum
-theta_hat_MB
+theta_chapeu_MB <- optimize(f = soma_de_quadrados, interval = c(0, 5), 
+                         dado_observado = as.numeric(BB),
+                         tol = .01)$minimum
+theta_chapeu_MB
+
+set.seed(1)
+theta_chapeu_PP <- optimize(f = soma_de_quadrados, interval = c(0, 5), 
+                            dado_observado = as.numeric(BB), 
+                            tipo = "Poisson", lambda=1,
+                            tol = .01)$minimum
+theta_chapeu_PP
 
 # Poisson
 # theoretical_process_poisson <- function(lambda, observed_data) {
@@ -175,17 +162,17 @@ theta_hat_MB
 #   
 #   return(result)
 # }
-
-# Função para calcular a soma dos quadrados dos resíduos para o Processo de Poisson
-sum_of_squares_poisson <- function(lambda, observed_data) {
-  model_data <- theoretical_process_poisson(lambda, observed_data)
-  residuals <- observed_data - model_data
-  return(sum(residuals^2))
-}
-
-# Estimação do parâmetro lambda para o Processo de Poisson
-lambda_hat_PP <- optimize(f = sum_of_squares_poisson, interval = c(0, 1), observed_data = as.numeric(BB), tol = .01)$minimum
-lambda_hat_PP
+# 
+# # Função para calcular a soma dos quadrados dos resíduos para o Processo de Poisson
+# sum_of_squares_poisson <- function(lambda, observed_data) {
+#   model_data <- theoretical_process_poisson(lambda, observed_data)
+#   residuals <- observed_data - model_data
+#   return(sum(residuals^2))
+# }
+# 
+# # Estimação do parâmetro lambda para o Processo de Poisson
+# lambda_hat_PP <- optimize(f = sum_of_squares_poisson, interval = c(0, 1), observed_data = as.numeric(BB), tol = .01)$minimum
+# lambda_hat_PP
 
 # > d ####
 
