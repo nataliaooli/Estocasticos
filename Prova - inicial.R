@@ -52,7 +52,7 @@ steadyStates(mc)
 
 
 # > c ####
-real <- as.vector(tail(estados, n=10))
+(real <- as.vector(tail(estados, n=10)))
 (pred <- predict(mc,newdata = c("1","1"),n.ahead = 10))
 
 table(real, pred)
@@ -114,31 +114,79 @@ simulatebrown <-  function(n,h) {
   
 }
 
-a <- simulatebrown(n=100, h=0.1)
+a <- simulatebrown(n=248, h=0.1)
 
 plot(a$tempos, a$mb, type="l")
 
-num <- 100
-results <- lapply(1:num, 
-                  function(i) simulatebrown(n=100, h=0.1))
+# processo de poisson
 
-plot(results[[1]]$tempos, results[[1]]$mb, type= "l", col= 1, xlab= "Tempo", ylab= "Valor acumulado", ylim = c(-10,10), 
-     main= "Simulações do Movimento Browniano acumulado")
+incremento=1/248
+tempos=seq(0,1,by=incremento)
+n=length(tempos)
+taxa=1
 
-for (i in 1:num) {
-  lines(results[[i]]$tempos, results[[i]]$mb, col=i)
-}
+N=c(0,cumsum(rpois(n-1, lambda=taxa*incremento)))
+length(N)
 
+plot(tempos, N, type="l")
 
 # > b ####
 
 pdisc <- function(tempo, historico, taxa, processo){
-  soma <- 0
-  for (i in 1:length(historico)) {
-    soma = sum(historico[i] * (tempo[i] - tempo[i-1]))
-  }
+  soma = sum(historico * (1/248)) 
   xtk = historico[length(historico)] - taxa * soma + processo
   return(xtk)
 }
 
-pdisc(tempo=seq(0,1,0.1), historico=c(1,0.8,0.7,.6), taxa=0.5, processo=rnorm(1))
+pdisc(tempo = seq(0,1,.002), historico = BB, taxa = 0.5, processo = rpois(248,1))
+
+# > c ####
+
+# Browniano
+theoretical_process_brownian <- function(theta, observed_data) {
+  n <- length(observed_data)
+  time_points <- seq(0, 1, length.out = n)
+  result <- numeric(n)
+  for (k in 2:n) {
+    result[k] <- result[k - 1] - theta * sum(observed_data[1:(k - 1)] * diff(time_points[1:(k - 1)])) + rnorm(1)
+  }
+  return(result)
+}
+
+# Função para calcular a soma dos quadrados dos resíduos para o Movimento Browniano
+sum_of_squares_brownian <- function(theta, observed_data) {
+  model_data <- theoretical_process_brownian(theta, observed_data)
+  residuals <- observed_data - model_data
+  return(sum(residuals^2))
+}
+
+# Estimação do parâmetro theta para o Movimento Browniano
+set.seed(1)
+theta_hat_MB <- optimize(f = sum_of_squares_brownian, interval = c(0, 5), observed_data = as.numeric(BB), tol = .01)$minimum
+theta_hat_MB
+
+# Poisson
+# theoretical_process_poisson <- function(lambda, observed_data) {
+#   n <- length(observed_data)
+#   result <- numeric(n)
+#   for (k in 1:n) {
+#     result[k] <- exp(-lambda) * lambda * k + rpois(1, lambda = lambda)
+#   }
+#   
+#   return(result)
+# }
+
+# Função para calcular a soma dos quadrados dos resíduos para o Processo de Poisson
+sum_of_squares_poisson <- function(lambda, observed_data) {
+  model_data <- theoretical_process_poisson(lambda, observed_data)
+  residuals <- observed_data - model_data
+  return(sum(residuals^2))
+}
+
+# Estimação do parâmetro lambda para o Processo de Poisson
+lambda_hat_PP <- optimize(f = sum_of_squares_poisson, interval = c(0, 1), observed_data = as.numeric(BB), tol = .01)$minimum
+lambda_hat_PP
+
+# > d ####
+
+
