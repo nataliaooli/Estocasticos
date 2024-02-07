@@ -1,0 +1,239 @@
+---
+title: "![](https://i.imgur.com/9SITPRc.png)"
+author: "Ana Clara Valério - 202017764 e Natália Vieira - 190093811"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    code_folding: hide
+    number_sections: no
+    theme: flatly
+    highlight: textmate
+    toc: yes
+    toc_float:
+      colappsed: yes
+      smooth_scroll: no
+subtitle: "PROVA 2 - Processos Estocásticos 2024.0"
+---
+
+## Questão 1
+
+O objetivo do exercício é verificar a aplicabilidade de uma cadeia de Markov na modelagem de dados climáticos. Deverão ser utilizados os dados disponíveis na base "dados.txt" disponibilizado no SIGAA. Leia a base de dados no software R.
+
+```{r, include=FALSE, message=FALSE, warning=FALSE}
+# Pacotes utilizados
+pacman::p_load(tidyverse, MASS, quantmod, markovchain)
+```
+
+### (a) A partir da variável precipitação, crie um processo com espaço de estados contendo 5 elementos.
+
+```{r, include=FALSE}
+dados <- read.delim("dados.txt", sep =";")[,-c(5,6,7)]
+dados$Precipitacao <- as.numeric(dados$Precipitacao)
+dados <- dados %>% na.omit()
+
+```
+
+```{r}
+precipitacao <- round(as.vector(dados$Precipitacao[!is.na(dados$Precipitacao)]))
+
+par(mfrow = c(1,2))
+plot(dados$Precipitacao, type = "l")
+plot(precipitacao, type = "l")
+
+elementos <- cut(dados$Precipitacao, breaks = 5, labels  = c("1","2","3","4","5"), levels = labels)
+# ele me dá as seguintes classes: 
+# estado 1 = (-0.131,26.2]
+# estado 2 = (26.2, 52.4]
+# estado 3 = (52.4,78.6]
+# estado 4 = (78.6,105]
+# estado 5 = (105,131]
+
+plot(as.numeric(elementos))
+
+(elementos <- cut(dados$Precipitacao, breaks = c(0,4,26,56,86,131), labels = c("1","2","3","4","5"), levels = labels))
+(elementos <- cut(dados$Precipitacao, breaks = c(0.0,4.0,24.0,54.0,80.0,131.0), 
+                  labels = c("1","2","3","4","5"), levels = labels,
+                  include.lowest = T))
+
+```
+
+### (b) Estime as probabilidades de transição com base nos dados (exceto para os últimos 10 dias que serão os dados de validação).
+
+```{r}
+# proc1$Data <- as.Date(proc1$Data, format = "%d/%m/%Y")
+# unique(proc1$Data)
+# proc1 <- proc1[c(1:695),]
+# 
+# transicoes <- matrix(0, nrow = 5, ncol = 5)
+
+
+estados <- head(elementos, n = 18470)
+P1 <- createSequenceMatrix(estados)
+P1
+
+Fit = markovchainFit(data = estados,confidencelevel = 0.95)
+Fit$estimate
+
+mc = Fit$estimate
+summary(mc)
+
+plot(mc)
+steadyStates(mc)
+
+
+```
+
+### (c) Predizer os próximos símbolos do processo e avaliar a qualidade da estimação utilizando os 10 dias finais. (Dica: uma possibilidade é fazer uma matriz de confusão)
+
+```{r}
+(real <- as.vector(tail(estados, n=10)))
+(pred <- predict(mc,newdata = c("1","1"),n.ahead = 1000))
+
+```
+
+## Questão 2
+
+O objetivo dessa questão é a modelagem de ativos financeiros utilizando processos estocásticos a tempo contínuo. Para isso, um modelo teórico é assumido e comparado com o processo observado nos tempos t0 \< t1 \< · · · \< tn. No software R, baixe a série de preços de fechamentos dos valores das ações do BBAS3 de 01/01/2023 a 31/12/2023. (Dica: utilize a função "quantmod::getSymbols"). Assuma que o preço das ações segue o modelo estocástico:
+
+$$ X(t) = X_0 - \theta \int_0^t X(s)ds + \xi(t), \quad t \in [0, 1], $$ onde $X_0$ é o valor inicial do processo, $\theta \in (0,\infty)$ é um parâmetro (de drift) e $\{ \xi(t); t \in [0, 1] \}$ é um processo estocástico a tempo contínuo. Desejamos avaliar qual dos processos gera o melhor ajuste de modelo ao processo observado, o movimento Browniano $\xi(t) = B(t)$ ou o processo de Poisson $\xi(t) = N(t)$. Para isso, siga os seguintes passos:
+
+```{r}
+
+BBAS3 <- as.data.frame(quantmod::getSymbols("BBAS3.SA", src = "yahoo", auto.assign = FALSE,
+                                            from = '2023-01-01', 
+                                            to = '2023-12-31', return.class = 'xts')) %>% 
+  mutate(t = seq(1,248,1))
+
+BB=BBAS3$BBAS3.SA.Close %>% as.vector()
+
+plot(BBAS3$t, BB, type="l", xlim = c(1,248))
+
+```
+
+### (a) Simule uma trajetória do movimento Browniano B = {B(t); t ∈ [0, 1]} e uma do
+processo de Poisson N = {N(t); t ∈ [0, 1]} com taxa λ = 1 contendo a mesma
+quantidade de pontos que a base de dados.
+
+```{r}
+# movimento browniano
+simulatebrown <-  function(n,h) {
+  times = (0:n)*h
+  incrementos = (rnorm(n, 0, sd= sqrt(h)))
+  B= c(0, cumsum(incrementos))
+  return(list(mb = B, tempos= times))
+}
+
+a <- simulatebrown(n=248, h=1/248)
+
+plot(a$tempos, a$mb, type="l")
+
+# processo de poisson
+
+incremento=1/248
+tempos=seq(0,1,by=incremento)
+n=length(tempos)
+taxa=1
+
+N=c(0,cumsum(rpois(n-1, lambda=taxa*incremento)))
+length(N)
+
+plot(tempos, N, type="l")
+```
+
+### (b) 
+Considere o processo discretizado
+
+\[ X(t_k) = X(t_{k-1}) - \theta \sum_{j=0}^{k-1} X(t_j)(t_j - t_{j-1}) + \xi(t_k). \quad (1) \]
+
+Programe uma função que receba os tempos \( t_0 < \cdots < t_{k-1} \), o histórico do processo até o tempo \( t_{k-1} \), ou seja, \( (X(t_0), \ldots , X(t_{k-1})) \), um valor do parâmetro \( \theta \) e o valor do processo \( \xi(t_k) \). A saída da função deve ser o valor do processo no tempo \( t_k \), ou seja, \( X(t_k) \), calculado por (1).
+
+
+
+
+```{r}
+pdisc <- function(tempo, historico, taxa, processo){
+  soma = sum(historico * (1/248)) 
+  xtk = historico[length(historico)] - taxa * soma + processo
+  return(xtk)
+}
+
+pdisc(tempo = seq(0,1,1/248), historico = BB, taxa = 0.5, processo = rpois(248,1))
+
+```
+
+### (c) Estime o parâmetro θ a partir dos dados observados. (Dica: Um possível estimador é o de mínimos quadrados, comparando o processo observado ao modelo teórico (1). Nesse caso, são obtidos as estimativas θMB e θPP , respectivamente, para o movimento Browniano e o processo de Poisson).
+
+```{r}
+# Browniano e poisson, tem que ser definido no parâmetro tipo qual processo será usado
+# Caso seja utilizado o processo de Poisson, é necessário declarar o lambda
+
+processo_simulado <- function(theta, dado_observado, tipo = "Browniano", lambda=1) {
+  n <- length(dado_observado)
+  h <- 1/n
+  tempo <- seq(0, 1, length.out = n)
+  result <- numeric(n)
+  if(tipo == "Browniano"){
+    ruido = rnorm(1)
+  }
+  if(tipo == "Poisson"){
+    ruido = rpois(1,lambda = lambda*(n*h))
+  }
+  for (k in 2:n) {
+    result[k] <- result[k - 1] - theta * sum(dado_observado[1:(k - 1)] * h) + ruido
+  }
+  return(result)
+}
+
+# Função para calcular a soma dos quadrados dos resíduos
+soma_de_quadrados <- function(theta, dado_observado, tipo = "Browniano", lambda=1) {
+  modelo_simulado <- processo_simulado(theta, dado_observado, tipo, lambda=1)
+  residuals <- dado_observado - modelo_simulado
+  return(sum(residuals^2))
+}
+
+# Estimação do parâmetro theta para o Movimento Browniano
+set.seed(1)
+theta_chapeu_MB <- optimize(f = soma_de_quadrados, interval = c(0, 5), 
+                         dado_observado = as.numeric(BB),
+                         tol = .01)$minimum
+theta_chapeu_MB
+
+set.seed(1)
+theta_chapeu_PP <- optimize(f = soma_de_quadrados, interval = c(0, 5), 
+                            dado_observado = as.numeric(BB), 
+                            tipo = "Poisson", lambda=1,
+                            tol = .01)$minimum
+theta_chapeu_PP
+
+# Poisson
+# theoretical_process_poisson <- function(lambda, observed_data) {
+#   n <- length(observed_data)
+#   result <- numeric(n)
+#   for (k in 1:n) {
+#     result[k] <- exp(-lambda) * lambda * k + rpois(1, lambda = lambda)
+#   }
+#   
+#   return(result)
+# }
+# 
+# # Função para calcular a soma dos quadrados dos resíduos para o Processo de Poisson
+# sum_of_squares_poisson <- function(lambda, observed_data) {
+#   model_data <- theoretical_process_poisson(lambda, observed_data)
+#   residuals <- observed_data - model_data
+#   return(sum(residuals^2))
+# }
+# 
+# # Estimação do parâmetro lambda para o Processo de Poisson
+# lambda_hat_PP <- optimize(f = sum_of_squares_poisson, interval = c(0, 1), observed_data = as.numeric(BB), tol = .01)$minimum
+# lambda_hat_PP
+
+```
+
+### (d) Avalie os resíduos (diferença entre processo observado e modelo ajustado) do ajuste. (Dica: podem ser feitos testes de normalidade dos resíduos, histograma, boxplot e/ou Normal-qq plot).
+
+
+### (e) Represente graficamente o processo observado e os modelos ajustados.
+
+### (f) Estabeleça qual o melhor modelo (utilizando movimento Browniano ou processo de Poisson).
+
+### (g) Leia os dados de 01/01/2024 a 15/01/2024. Utilize o modelo ajustado em (c) para predizer o valor das novas observações com base nos dados de 2023. Analise os resultados.
