@@ -8,7 +8,8 @@ pacman::p_load(tidyverse, MASS, quantmod)
 
 dados <- read.delim("dados.txt", sep =";")[,-c(5,6,7)]
 dados$Precipitacao <- as.numeric(dados$Precipitacao)
-dados <- dados %>% na.omit()
+dados <- dados %>% 
+  na.omit()
 
 # > a ####
 
@@ -18,6 +19,7 @@ par(mfrow = c(1,2))
 plot(dados$Precipitacao, type = "l")
 plot(precipitacao, type = "l")
 
+# separando em classes a variável Precipitação e cada classe será um estado
 elementos <- cut(dados$Precipitacao, breaks = 5, labels  = c("1","2","3","4","5"), levels = labels)
 # ele me dá as seguintes classes: 
 # estado 1 = (-0.131,26.2]
@@ -28,18 +30,27 @@ elementos <- cut(dados$Precipitacao, breaks = 5, labels  = c("1","2","3","4","5"
 
 plot(as.numeric(elementos))
 
-(elementos <- cut(dados$Precipitacao, breaks = c(0,4,26,56,86,131), labels = c("1","2","3","4","5"), levels = labels))
-(elementos <- cut(dados$Precipitacao, breaks = c(0.0,4.0,24.0,54.0,80.0,131.0), 
+(elementos <- cut(dados$Precipitacao, breaks = c(0,4,26,56,86,131), labels = c("1","2","3","4","5"), 
+                  levels = labels, include.lowest = T))
+plot(as.numeric(elementos))
+
+(elementos <- cut(dados$Precipitacao, breaks = c(0,4,24,54,80,131), 
                   labels = c("1","2","3","4","5"), levels = labels,
                   include.lowest = T))
+plot(as.numeric(elementos))
+
+(elementos <- cut(dados$Precipitacao, breaks = c(0,4,24,54,74,131), 
+                  labels = c("1","2","3","4","5"), levels = labels,
+                  include.lowest = T))
+plot(as.numeric(elementos))
+
 
 # > b ####
 
-# proc1$Data <- as.Date(proc1$Data, format = "%d/%m/%Y")
-# unique(proc1$Data)
-# proc1 <- proc1[c(1:695),]
-# 
-# transicoes <- matrix(0, nrow = 5, ncol = 5)
+# com a função cut definindo automaticamente as classes, a probabilidade  de transição
+# do estado 1 ficava muito grande, então pensando já no item c da questão 1,
+# decidimos testar classes que englobassem classes diferentes das geradas inicialmente.
+# De forma que pudéssemos ter os valores preditos mais próximos dos valores reais.
 
 
 estados <- head(elementos, n = 18470)
@@ -58,7 +69,7 @@ steadyStates(mc)
 
 # > c ####
 (real <- as.vector(tail(estados, n=10)))
-(pred <- predict(mc,newdata = c("1","1"),n.ahead = 1000))
+(pred <- predict(mc,newdata = c("1","1"),n.ahead = 10))
 
 table(real, pred)
 
@@ -67,11 +78,11 @@ table(real, pred)
 BBAS3 <- as.data.frame(quantmod::getSymbols("BBAS3.SA", src = "yahoo", auto.assign = FALSE,
                                             from = '2023-01-01', 
                                             to = '2023-12-31', return.class = 'xts')) %>% 
-  mutate(t = seq(1,248,1))
+  mutate(t = seq(0,1, length.out = 248))
 
 BB=BBAS3$BBAS3.SA.Close %>% as.vector()
 
-plot(BBAS3$t, BB, type="l", xlim = c(1,248))
+plot(BBAS3$t, BB, type="l", xlim = c(0,1))
 
 # > a ####
 
@@ -139,20 +150,20 @@ soma_de_quadrados <- function(theta, dado_observado, tipo = "Browniano", lambda=
 }
 
 # Estimação do parâmetro theta para o Movimento Browniano
-set.seed(1)
+set.seed(3)
 theta_chapeu_MB <- optimize(f = soma_de_quadrados, interval = c(0, 5), 
                          dado_observado = as.numeric(BB),
                          tol = .01)$minimum
 theta_chapeu_MB
 
-set.seed(1)
+set.seed(3)
 theta_chapeu_PP <- optimize(f = soma_de_quadrados, interval = c(0, 5), 
                             dado_observado = as.numeric(BB), 
                             tipo = "Poisson", lambda=1,
                             tol = .01)$minimum
 theta_chapeu_PP
 
-# Poisson
+# Poisson - ERRADO !!!!!!!!!!!!
 # theoretical_process_poisson <- function(lambda, observed_data) {
 #   n <- length(observed_data)
 #   result <- numeric(n)
@@ -176,4 +187,29 @@ theta_chapeu_PP
 
 # > d ####
 
+Bsimulado <- Psimulado <-  numeric(248) # B(0) = 0
+Bsimulado[1] <- Psimulado[1] <- BB[1]
 
+for (i in 2:248) {
+  Bsimulado[i] <- Bsimulado[i - 1] - theta_chapeu_MB * 1/248 * sum(Bsimulado[1:(i - 1)]) + rnorm(1)
+}
+
+for (i in 2:248) {
+  Psimulado[i] <- Psimulado[i - 1] - theta_chapeu_PP * 1/248 *  sum(Psimulado[1:(i - 1)]) + rpois(248,lambda = 1)
+}
+
+processos <- data.frame(indice = seq(0,1,length.out=248),
+                        observado = BB,
+                        browniano = Bsimulado,
+                        poisson = Psimulado)
+
+#par(mfrow = c(1,3))
+plot(BB, type = "l")
+title("Real")
+plot(Bsimulado, type = "l")
+title("Browniano")
+plot(Psimulado, type = "l")
+title("Poisson")
+
+
+teste <- processo_simulado(theta = theta_chapeu_MB, BB)
