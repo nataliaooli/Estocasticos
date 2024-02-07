@@ -2,14 +2,16 @@
 setwd("C:/Users/natyo/Documents/10 semestre/Processos Estocásticos - VERÃO 2024.0/Prova/Estocasticos")
 
 # Pacotes utilizados
-pacman::p_load(tidyverse, MASS, quantmod)
+pacman::p_load(tidyverse, MASS, quantmod, ggplot2, ggpubr, markovchain)
 
 # 1 ####
 
 dados <- read.delim("dados.txt", sep =";")[,-c(5,6,7)]
 dados$Precipitacao <- as.numeric(dados$Precipitacao)
 dados <- dados %>% 
-  na.omit()
+  na.omit() %>% 
+  mutate(Tempo = seq(1, 18480, 1))
+ 
 
 # > a ####
 
@@ -19,6 +21,22 @@ par(mfrow = c(1,2))
 plot(dados$Precipitacao, type = "l")
 plot(precipitacao, type = "l")
 
+ggplot(dados, aes(x= Tempo, y = Precipitacao, group = 1))+
+  geom_line()+
+  labs(title = "Precipitação ao longo dos dias (de 01/01/1964 a 31/12/2014)",
+       y = "Precipitação",
+       x = "Tempo")+
+  scale_y_continuous(limits = c(0,131), breaks = seq(0,131,131/5))+
+  scale_x_continuous(limits = c(0,18480), breaks = seq(0,18480,2000))+
+  theme_light()+
+  theme(axis.title.y=element_text(size=12),
+        axis.title.x = element_text(size=12),
+        axis.text = element_text(colour = "black", size=10),
+        title = element_text(size = 14),
+        plot.title = element_text(hjust = 0.5),
+        panel.border = element_blank(),
+        panel.grid.major.x = element_blank())
+
 # separando em classes a variável Precipitação e cada classe será um estado
 elementos <- cut(dados$Precipitacao, breaks = 5, labels  = c("1","2","3","4","5"), levels = labels)
 # ele me dá as seguintes classes: 
@@ -27,6 +45,20 @@ elementos <- cut(dados$Precipitacao, breaks = 5, labels  = c("1","2","3","4","5"
 # estado 3 = (52.4,78.6]
 # estado 4 = (78.6,105]
 # estado 5 = (105,131]
+
+ggplot(data.frame(x = c(1:18480), y = elementos), aes(x=x, y=y)) +
+  geom_point()+
+  labs(title = "Cadeia de Markov - Precipitação",
+       y = "Estados",
+       x = "Tempo")+
+  scale_x_continuous(limits = c(0,18480), breaks = seq(0,18480,2000))+
+  theme_bw()+
+  theme(axis.title.y=element_text(size=12),
+        axis.title.x = element_text(size=12),
+        axis.text = element_text(colour = "black", size=10),
+        title = element_text(size = 14),
+        plot.title = element_text(hjust = 0.5),
+        panel.grid.major.x = element_blank())
 
 plot(as.numeric(elementos))
 
@@ -112,13 +144,13 @@ plot(tempos, N, type="l")
 
 # > b ####
 
-pdisc <- function(tempo, historico, taxa, processo){
-  soma = sum(historico * (1/248)) 
+pdisc <- function(h, historico, taxa, processo){
+  soma = sum(historico * h) 
   xtk = historico[length(historico)] - taxa * soma + processo
   return(xtk)
 }
 
-pdisc(tempo = seq(0,1,1/248), historico = BB, taxa = 0.5, processo = rpois(248,1))
+plot(pdisc(h=1/248, historico = BB, taxa = 0.5, processo = rnorm(248)), type="l")
 
 # > c ####
 
@@ -150,17 +182,19 @@ soma_de_quadrados <- function(theta, dado_observado, tipo = "Browniano", lambda=
 }
 
 # Estimação do parâmetro theta para o Movimento Browniano
-set.seed(3)
-theta_chapeu_MB <- optimize(f = soma_de_quadrados, interval = c(0, 5), 
+set.seed(1)
+theta_chapeu_MB <- optimize(f = soma_de_quadrados, interval = c(0, 1), 
                          dado_observado = as.numeric(BB),
-                         tol = .01)$minimum
-theta_chapeu_MB
+                         tol = .9)$minimum
 
-set.seed(3)
-theta_chapeu_PP <- optimize(f = soma_de_quadrados, interval = c(0, 5), 
+
+set.seed(1)
+theta_chapeu_PP <- optimize(f = soma_de_quadrados, interval = c(0, 1), 
                             dado_observado = as.numeric(BB), 
                             tipo = "Poisson", lambda=1,
-                            tol = .01)$minimum
+                            tol = .9)$minimum
+
+theta_chapeu_MB
 theta_chapeu_PP
 
 # Poisson - ERRADO !!!!!!!!!!!!
@@ -187,29 +221,110 @@ theta_chapeu_PP
 
 # > d ####
 
-Bsimulado <- Psimulado <-  numeric(248) # B(0) = 0
-Bsimulado[1] <- Psimulado[1] <- BB[1]
+set.seed(1)
+x_simulado_mb <- pdisc(h=1/248, historico = BB, taxa = theta_chapeu_MB, processo = rnorm(248))
+residuos_mb <- BB - x_simulado_mb
+qqnorm(residuos_mb)
+qqline(residuos_mb)
+shapiro.test(residuos_mb)
 
-for (i in 2:248) {
-  Bsimulado[i] <- Bsimulado[i - 1] - theta_chapeu_MB * 1/248 * sum(Bsimulado[1:(i - 1)]) + rnorm(1)
-}
+set.seed(1)
+x_simulado_pp <- pdisc(h=1/248, historico = BB, taxa = theta_chapeu_PP, processo = rpois(248,1))
+residuos_pp <- BB - x_simulado_pp
+qqnorm(residuos_pp)
+qqline(residuos_pp)
+shapiro.test(residuos_pp)
 
-for (i in 2:248) {
-  Psimulado[i] <- Psimulado[i - 1] - theta_chapeu_PP * 1/248 *  sum(Psimulado[1:(i - 1)]) + rpois(248,lambda = 1)
-}
+# > e ####
 
-processos <- data.frame(indice = seq(0,1,length.out=248),
-                        observado = BB,
-                        browniano = Bsimulado,
-                        poisson = Psimulado)
+plot(x_simulado_mb, type = "l")
+plot(x_simulado_pp, type = "l")
 
-#par(mfrow = c(1,3))
 plot(BB, type = "l")
-title("Real")
-plot(Bsimulado, type = "l")
-title("Browniano")
-plot(Psimulado, type = "l")
-title("Poisson")
 
+processos <- data.frame(indice = seq(0, 1, length.out= (248)),
+                        acoes = BB,
+                        MB = x_simulado_mb,
+                        PP = x_simulado_pp)
 
-teste <- processo_simulado(theta = theta_chapeu_MB, BB)
+processos <- processos %>% pivot_longer(!indice, names_to = "Modelo", values_to = "Processos")
+ppoisson <- processos %>% filter(Modelo != "MB")
+pbrown <- processos %>% filter(Modelo != "PP")
+
+(g1 <- ggplot(data = pbrown, aes(x = indice, y= Processos, color = Modelo, group = Modelo)) +
+    geom_line(size = 1)+
+    scale_color_manual(values = c("acoes" = "red", "MB" = "#4682B4"), 
+                     labels = c("acoes" = "Observado", "MB" = "Movimento Browniano"))+
+    labs(title = "Real X Browniano",
+         y = "Valores dos modelos",
+         x = "Tempo")+
+    ylim(30, 60)+
+    theme_light()+
+    theme(axis.title.y=element_text(size=12),
+          axis.title.x = element_text(size=12),
+          axis.text = element_text(colour = "black", size=10),
+          title = element_text(size = 14),
+          plot.title = element_text(hjust = 0.5),
+          panel.border = element_blank(),
+          legend.position = "bottom",
+          legend.background = element_rect(colour = "black"),
+          legend.title = element_text(size = 12),
+          legend.text = element_text(size = 10))
+)
+
+(g2 <- ggplot(data = ppoisson, aes(x = indice, y= Processos, color = Modelo, group = Modelo)) +
+    geom_line(size = 1)+
+    scale_color_manual(values = c("acoes" = "red", "PP" = "#2E8B57"), 
+                       labels = c("acoes" = "Observado", "PP" = "Processo de Poisson"))+
+    labs(title = "Real X Poisson",
+         y = "",
+         x = "Tempo")+
+    ylim(30, 60)+
+    theme_light()+
+    theme(axis.title.y=element_text(size=12),
+          axis.title.x = element_text(size=12),
+          axis.text = element_text(colour = "black", size=10),
+          title = element_text(size = 14),
+          plot.title = element_text(hjust = 0.5),
+          panel.border = element_blank(),
+          legend.position = "bottom",
+          legend.background = element_rect(colour = "black"),
+          legend.title = element_text(size = 12),
+          legend.text = element_text(size = 10))
+)
+
+ggarrange(g1, g2, ncol = 2, nrow= 1)
+# # teste que não deu certo
+# pdisc <- function(h, historico, taxa, processo){
+#   xtk <- numeric(length(historico))
+#   xtk[1] <- historico[1]
+#   for (k in 2:(n-1)) {
+#     xtk[k] <- xtk[k - 1] - taxa * h * sum(xtk[1:(k - 1)]) + processo[k]
+#   }
+#   return(xtk)
+# }
+# 
+# pdisc <- function(h, historico, taxa, processo){
+#   for (k in 2:n){
+#   soma = sum(historico * h) 
+#   xtk = historico[length(historico)] - taxa * soma + processo
+#   return(xtk)
+#   }
+# }
+# 
+# # atual 
+# pdisc <- function(h, historico, taxa, processo){
+#   soma = sum(historico * h) 
+#   xtk = historico[length(historico)] - taxa * soma + processo
+#   return(xtk)
+# }
+
+# > f #### 
+#teórica
+
+# > g ####
+
+BB24 <- as.data.frame(quantmod::getSymbols("BBAS3.SA", src = "yahoo", auto.assign = FALSE,
+                                            from = '2024-01-01', 
+                                            to = '2024-01-15', return.class = 'xts'))
+fechamento <- BB24$BBAS3.SA.Close %>% as.vector()

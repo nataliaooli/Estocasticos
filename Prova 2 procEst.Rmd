@@ -21,7 +21,7 @@ O objetivo do exercício é verificar a aplicabilidade de uma cadeia de Markov n
 
 ```{r, include=FALSE, message=FALSE, warning=FALSE}
 # Pacotes utilizados
-pacman::p_load(tidyverse, MASS, quantmod, markovchain)
+pacman::p_load(tidyverse, MASS, quantmod, markovchain, ggplot2, ggpubr)
 ```
 
 ### (a) A partir da variável precipitação, crie um processo com espaço de estados contendo 5 elementos.
@@ -29,17 +29,30 @@ pacman::p_load(tidyverse, MASS, quantmod, markovchain)
 ```{r, include=FALSE}
 dados <- read.delim("dados.txt", sep =";")[,-c(5,6,7)]
 dados$Precipitacao <- as.numeric(dados$Precipitacao)
-dados <- dados %>% na.omit()
+dados <- dados %>% 
+  na.omit() %>% 
+  mutate(Tempo = seq(1, 18480, 1))
+  
+  
+ggplot(dados, aes(x= Tempo, y = Precipitacao, group = 1))+
+  geom_line()+
+  labs(title = "Precipitação ao longo dos dias (de 01/01/1964 a 31/12/2014)",
+       y = "Precipitação",
+       x = "Tempo")+
+  scale_y_continuous(limits = c(0,131), breaks = seq(0,131,131/5))+
+  scale_x_continuous(limits = c(0,18480), breaks = seq(0,18480,2000))+
+  theme_light()+
+  theme(axis.title.y=element_text(size=12),
+        axis.title.x = element_text(size=12),
+        axis.text = element_text(colour = "black", size=10),
+        title = element_text(size = 14),
+        plot.title = element_text(hjust = 0.5),
+        panel.border = element_blank(),
+        panel.grid.major.x = element_blank())
 
 ```
 
 ```{r}
-precipitacao <- round(as.vector(dados$Precipitacao[!is.na(dados$Precipitacao)]))
-
-par(mfrow = c(1,2))
-plot(dados$Precipitacao, type = "l")
-plot(precipitacao, type = "l")
-
 elementos <- cut(dados$Precipitacao, breaks = 5, labels  = c("1","2","3","4","5"), levels = labels)
 # ele me dá as seguintes classes: 
 # estado 1 = (-0.131,26.2]
@@ -48,48 +61,127 @@ elementos <- cut(dados$Precipitacao, breaks = 5, labels  = c("1","2","3","4","5"
 # estado 4 = (78.6,105]
 # estado 5 = (105,131]
 
-plot(as.numeric(elementos))
-
-(elementos <- cut(dados$Precipitacao, breaks = c(0,4,26,56,86,131), labels = c("1","2","3","4","5"), levels = labels))
-(elementos <- cut(dados$Precipitacao, breaks = c(0.0,4.0,24.0,54.0,80.0,131.0), 
-                  labels = c("1","2","3","4","5"), levels = labels,
-                  include.lowest = T))
+ggplot(data.frame(x = c(1:18480), y = elementos), aes(x=x, y=y)) +
+  geom_point()+
+  labs(title = "Cadeia de Markov - Precipitação",
+       y = "Estados",
+       x = "Tempo")+
+  scale_x_continuous(limits = c(0,18480), breaks = seq(0,18480,2000))+
+  theme_bw()+
+  theme(axis.title.y=element_text(size=12),
+        axis.title.x = element_text(size=12),
+        axis.text = element_text(colour = "black", size=10),
+        title = element_text(size = 14),
+        plot.title = element_text(hjust = 0.5),
+        panel.grid.major.x = element_blank())
 
 ```
 
 ### (b) Estime as probabilidades de transição com base nos dados (exceto para os últimos 10 dias que serão os dados de validação).
 
 ```{r}
-# proc1$Data <- as.Date(proc1$Data, format = "%d/%m/%Y")
-# unique(proc1$Data)
-# proc1 <- proc1[c(1:695),]
-# 
-# transicoes <- matrix(0, nrow = 5, ncol = 5)
-
-
 estados <- head(elementos, n = 18470)
 P1 <- createSequenceMatrix(estados)
 P1
 
 Fit = markovchainFit(data = estados,confidencelevel = 0.95)
-Fit$estimate
+round(Fit[["estimate"]]@transitionMatrix,2)
 
-mc = Fit$estimate
-summary(mc)
-
-plot(mc)
-steadyStates(mc)
-
-
+plot(mc,  width = 12, height = 8)
 ```
 
 ### (c) Predizer os próximos símbolos do processo e avaliar a qualidade da estimação utilizando os 10 dias finais. (Dica: uma possibilidade é fazer uma matriz de confusão)
 
 ```{r}
 (real <- as.vector(tail(estados, n=10)))
-(pred <- predict(mc,newdata = c("1","1"),n.ahead = 1000))
-
+(pred <- predict(mc,newdata = c("1","1"),n.ahead = 10))
+table(real, pred)
 ```
+
+Como visto no item b, a probabilidade de transição do estado 1 para ele mesmo está muito elevada. Para tentar aproximar os valores preditos dos valores reais, fomos redefinindo as classes, trabalhando com classes menores nos valores iniciais e classes maiores nos valores maiores.
+
+```{r, warning=FALSE}
+# primeiro teste para classes diferentes
+elementos <- cut(dados$Precipitacao, breaks = c(0,4,26,56,86,131), labels = c("1","2","3","4","5"), 
+                  levels = labels, include.lowest = T)
+cm2 <- ggplot(data.frame(x = c(1:18480), y = elementos), aes(x=x, y=y)) +
+  geom_point()+
+  labs(y = "Estados",
+       x = "")+
+  scale_x_continuous(limits = c(0,18480), breaks = seq(0,18480,2000))+
+  theme_bw()+
+  theme(axis.title.y=element_text(size=12),
+        axis.title.x = element_text(size=12),
+        axis.text = element_blank(),
+        panel.grid.major.x = element_blank())
+
+# segundo teste para classes diferentes
+elementos <- cut(dados$Precipitacao, breaks = c(0,4,24,54,80,131), 
+                  labels = c("1","2","3","4","5"), levels = labels,
+                  include.lowest = T)
+cm3 <- ggplot(data.frame(x = c(1:18480), y = elementos), aes(x=x, y=y)) +
+  geom_point()+
+  labs(y = "Estados",
+       x = "")+
+  scale_x_continuous(limits = c(0,18480), breaks = seq(0,18480,2000))+
+  theme_bw()+
+  theme(axis.title.y=element_text(size=12),
+        axis.title.x = element_text(size=12),
+        axis.text = element_blank(),
+        panel.grid.major.x = element_blank())
+
+# quarto e último teste para classes diferentes
+elementos <- cut(dados$Precipitacao, breaks = c(0,3,23,43,73,131), 
+                  labels = c("1","2","3","4","5"), levels = labels,
+                  include.lowest = T)
+
+cm4 <- ggplot(data.frame(x = c(1:18480), y = elementos), aes(x=x, y=y)) +
+  geom_point()+
+  labs(y = "Estados",
+       x = "Tempo")+
+  scale_x_continuous(limits = c(0,18480), breaks = seq(0,18480,2000))+
+  theme_bw()+
+  theme(axis.title.y=element_text(size=12),
+        axis.title.x = element_text(size=12),
+        axis.text = element_text(colour = "black", size=10),
+        panel.grid.major.x = element_blank())
+
+ggarrange(cm2, cm3, cm4, nol = 1, nrow =3)
+```
+
+Há uma sutil mudança entre os testes para definição de estados, então seguimos com o último apresentado em que cada estado engloba os seguintes intervalos/classes:
+
+-   Estado 1: [0,3];
+
+-   Estado 2: (3,23];
+
+-   Estado 3 (23,43]
+
+-   Estado 4: (43,73]
+
+-   Estado 5: (73,131]
+
+```{r}
+estados <- head(elementos, n = 18470) # pegando todos os dados, exceto os últimos 10 dias
+P1 <- createSequenceMatrix(estados)
+P1
+
+Fit = markovchainFit(data = estados,confidencelevel = 0.95)
+round(Fit[["estimate"]]@transitionMatrix,2)
+
+plot(mc,  width = 12, height = 8)
+```
+
+As probabilidades nos primeiros estados continuam muito altas, mas prosseguimos obtendo o seguinte resultado.
+
+```{r}
+estados[c(18469,18470)]
+(real <- as.vector(tail(estados, n=10)))
+(pred <- predict(mc,newdata = c("1","1"),n.ahead = 10))
+table(real, pred)
+```
+
+Vê-se que de 10 valores previstos, a cadeia utilizada só acertou 3 previsões. Considerando que os dois últimos dias pertenciam ao estado 1 e que a probabilidade de sair do estado 1 e chegar no estado 1 em um passo é de 84% aproximadamente, a probabilidade dos próximos dias terem precipitação de um valor que está dentro do intervalo do estado 1 é grande. Uma solução possível seria diminuir ainda mais os intervalos dos estados 1 e 2 e aumentar os do 3, 4 e 5.
 
 ## Questão 2
 
@@ -111,8 +203,8 @@ plot(BBAS3$t, BB, type="l", xlim = c(1,248))
 ```
 
 ### (a) Simule uma trajetória do movimento Browniano B = {B(t); t ∈ [0, 1]} e uma do
-processo de Poisson N = {N(t); t ∈ [0, 1]} com taxa λ = 1 contendo a mesma
-quantidade de pontos que a base de dados.
+
+processo de Poisson N = {N(t); t ∈ [0, 1]} com taxa λ = 1 contendo a mesma quantidade de pontos que a base de dados.
 
 ```{r}
 # movimento browniano
@@ -140,15 +232,13 @@ length(N)
 plot(tempos, N, type="l")
 ```
 
-### (b) 
+### (b)
+
 Considere o processo discretizado
 
-\[ X(t_k) = X(t_{k-1}) - \theta \sum_{j=0}^{k-1} X(t_j)(t_j - t_{j-1}) + \xi(t_k). \quad (1) \]
+$$ X(t_k) = X(t_{k-1}) - \theta \sum_{j=0}^{k-1} X(t_j)(t_j - t_{j-1}) + \xi(t_k). \quad (1) $$
 
-Programe uma função que receba os tempos \( t_0 < \cdots < t_{k-1} \), o histórico do processo até o tempo \( t_{k-1} \), ou seja, \( (X(t_0), \ldots , X(t_{k-1})) \), um valor do parâmetro \( \theta \) e o valor do processo \( \xi(t_k) \). A saída da função deve ser o valor do processo no tempo \( t_k \), ou seja, \( X(t_k) \), calculado por (1).
-
-
-
+Programe uma função que receba os tempos $t_0 < \cdots < t_{k-1}$, o histórico do processo até o tempo $t_{k-1}$, ou seja, $(X(t_0), \ldots , X(t_{k-1}))$, um valor do parâmetro $\theta$ e o valor do processo $\xi(t_k)$. A saída da função deve ser o valor do processo no tempo $t_k$, ou seja, $X(t_k)$, calculado por (1).
 
 ```{r}
 pdisc <- function(tempo, historico, taxa, processo){
@@ -230,7 +320,6 @@ theta_chapeu_PP
 ```
 
 ### (d) Avalie os resíduos (diferença entre processo observado e modelo ajustado) do ajuste. (Dica: podem ser feitos testes de normalidade dos resíduos, histograma, boxplot e/ou Normal-qq plot).
-
 
 ### (e) Represente graficamente o processo observado e os modelos ajustados.
 
