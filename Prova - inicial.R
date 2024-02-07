@@ -60,22 +60,6 @@ ggplot(data.frame(x = c(1:18480), y = elementos), aes(x=x, y=y)) +
         plot.title = element_text(hjust = 0.5),
         panel.grid.major.x = element_blank())
 
-plot(as.numeric(elementos))
-
-(elementos <- cut(dados$Precipitacao, breaks = c(0,4,26,56,86,131), labels = c("1","2","3","4","5"), 
-                  levels = labels, include.lowest = T))
-plot(as.numeric(elementos))
-
-(elementos <- cut(dados$Precipitacao, breaks = c(0,4,24,54,80,131), 
-                  labels = c("1","2","3","4","5"), levels = labels,
-                  include.lowest = T))
-plot(as.numeric(elementos))
-
-(elementos <- cut(dados$Precipitacao, breaks = c(0,4,24,54,74,131), 
-                  labels = c("1","2","3","4","5"), levels = labels,
-                  include.lowest = T))
-plot(as.numeric(elementos))
-
 
 # > b ####
 
@@ -105,6 +89,55 @@ steadyStates(mc)
 
 table(real, pred)
 
+# primeiro teste para classes diferentes
+elementos <- cut(dados$Precipitacao, breaks = c(0,4,26,56,86,131), labels = c("1","2","3","4","5"), 
+                 levels = labels, include.lowest = T)
+cm2 <- ggplot(data.frame(x = c(1:18480), y = elementos), aes(x=x, y=y)) +
+  geom_point()+
+  labs(y = "Estados",
+       x = "")+
+  scale_x_continuous(limits = c(0,18480), breaks = seq(0,18480,2000))+
+  theme_bw()+
+  theme(axis.title.y=element_text(size=12),
+        axis.title.x = element_text(size=12),
+        axis.text = element_blank(),
+        panel.grid.major.x = element_blank())
+
+# segundo teste para classes diferentes
+elementos <- cut(dados$Precipitacao, breaks = c(0,4,24,54,80,131), 
+                 labels = c("1","2","3","4","5"), levels = labels,
+                 include.lowest = T)
+cm3 <- ggplot(data.frame(x = c(1:18480), y = elementos), aes(x=x, y=y)) +
+  geom_point()+
+  labs(y = "Estados",
+       x = "")+
+  scale_x_continuous(limits = c(0,18480), breaks = seq(0,18480,2000))+
+  theme_bw()+
+  theme(axis.title.y=element_text(size=12),
+        axis.title.x = element_text(size=12),
+        axis.text = element_blank(),
+        panel.grid.major.x = element_blank())
+
+# quarto e último teste para classes diferentes
+elementos <- cut(dados$Precipitacao, breaks = c(0,3,23,43,73,131), 
+                 labels = c("1","2","3","4","5"), levels = labels,
+                 include.lowest = T)
+
+cm4 <- ggplot(data.frame(x = c(1:18480), y = elementos), aes(x=x, y=y)) +
+  geom_point()+
+  labs(y = "Estados",
+       x = "Tempo")+
+  scale_x_continuous(limits = c(0,18480), breaks = seq(0,18480,2000))+
+  theme_bw()+
+  theme(axis.title.y=element_text(size=12),
+        axis.title.x = element_text(size=12),
+        axis.text = element_text(colour = "black", size=10),
+        panel.grid.major.x = element_blank())
+
+ggarrange(cm2, cm3, cm4, nol = 1, nrow =3)
+
+# repetir os vetores "real" e "pred" para cada vez que rodar um novo vetor de elementos
+
 # 2 ####
 
 BBAS3 <- as.data.frame(quantmod::getSymbols("BBAS3.SA", src = "yahoo", auto.assign = FALSE,
@@ -114,7 +147,21 @@ BBAS3 <- as.data.frame(quantmod::getSymbols("BBAS3.SA", src = "yahoo", auto.assi
 
 BB=BBAS3$BBAS3.SA.Close %>% as.vector()
 
-plot(BBAS3$t, BB, type="l", xlim = c(0,1))
+#plot(BBAS3$t, BB, type="l", xlim = c(0,1))
+
+ggplot(BBAS3, aes(x = t, y = BBAS3.SA.Close))+
+  geom_line()+
+  labs(title = "Preços de Fechamento dos valores das ações do BBAS3 no ano de 2023",
+       y = "Preços",
+       x = "Tempo")+
+  scale_x_continuous(limits = c(0,1))+
+  theme_bw()+
+  theme(axis.title.y=element_text(size=12),
+        axis.title.x = element_text(size=12),
+        axis.text = element_text(colour = "black", size=10),
+        title = element_text(size = 14),
+        plot.title = element_text(hjust = 0.5),
+        panel.grid.major.x = element_blank())
 
 # > a ####
 
@@ -163,13 +210,13 @@ processo_simulado <- function(theta, dado_observado, tipo = "Browniano", lambda=
   tempo <- seq(0, 1, length.out = n)
   result <- numeric(n)
   if(tipo == "Browniano"){
-    ruido = rnorm(1)
+    ruido = rnorm(248)
   }
   if(tipo == "Poisson"){
-    ruido = rpois(1,lambda = lambda*(n*h))
+    ruido = rpois(248, lambda = lambda*(n*h))
   }
   for (k in 2:n) {
-    result[k] <- result[k - 1] - theta * sum(dado_observado[1:(k - 1)] * h) + ruido
+    result[k] <- result[k - 1] - theta * sum(dado_observado[1:(k - 1)] * h) + ruido[k]
   }
   return(result)
 }
@@ -187,7 +234,7 @@ theta_chapeu_MB <- optimize(f = soma_de_quadrados, interval = c(0, 1),
                          dado_observado = as.numeric(BB),
                          tol = .9)$minimum
 
-
+# Estimação do parâmetro theta para o Processo Poisson
 set.seed(1)
 theta_chapeu_PP <- optimize(f = soma_de_quadrados, interval = c(0, 1), 
                             dado_observado = as.numeric(BB), 
