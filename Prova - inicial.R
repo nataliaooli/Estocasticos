@@ -6,6 +6,7 @@ pacman::p_load(tidyverse, MASS, quantmod, ggplot2, ggpubr, markovchain)
 
 # 1 ####
 
+# leitura dos dados da questão 1
 dados <- read.delim("dados.txt", sep =";")[,-c(5,6,7)]
 dados$Precipitacao <- as.numeric(dados$Precipitacao)
 dados <- dados %>% 
@@ -63,32 +64,30 @@ ggplot(data.frame(x = c(1:18480), y = elementos), aes(x=x, y=y)) +
 
 # > b ####
 
-# com a função cut definindo automaticamente as classes, a probabilidade  de transição
-# do estado 1 ficava muito grande, então pensando já no item c da questão 1,
-# decidimos testar classes que englobassem classes diferentes das geradas inicialmente.
-# De forma que pudéssemos ter os valores preditos mais próximos dos valores reais.
+estados <- head(elementos, n = 18470) #selecionando todos os dados, exceto os dos 10 últimos dias
+P1 <- createSequenceMatrix(estados) # criando uma matriz de transições
+P1 # utilizando o método de máxima verossimilhança
 
-
-estados <- head(elementos, n = 18470)
-P1 <- createSequenceMatrix(estados)
-P1
-
-Fit = markovchainFit(data = estados,confidencelevel = 0.95)
-Fit$estimate
+Fit = markovchainFit(data = estados,confidencelevel = 0.95) # Gerando uma cadeia de markov a partir dos dados
+Fit$estimate # matriz das probabilidades de transições
 
 mc = Fit$estimate
-summary(mc)
+summary(mc) # classificando os estados
 
-plot(mc)
-steadyStates(mc)
+plot(mc) # grafo 
 
 
 # > c ####
-estados[c(18469,18470)]
-(real <- as.vector(tail(estados, n=10)))
-(pred <- predict(mc,newdata = c("1","1"),n.ahead = 10))
+estados[c(18469,18470)] # vendo quais foram os estados dos últimos 2 dias
+(real <- as.vector(tail(estados, n=10))) # estados observados dos 10 últimos dias
+(pred <- predict(mc,newdata = c("1","1"),n.ahead = 10)) # estados preditos dos 10 últimos dias do banco
 
-table(real, pred)
+table(real, pred) # tentativa de matriz de confusão
+
+# com a função cut definindo automaticamente as classes, a probabilidade  de transição
+# do estado 1 ficava muito grande, decidimos testar classes que 
+# englobassem intervalos diferentes das geradas inicialmente.
+# De forma que pudéssemos ter os valores preditos mais próximos dos valores reais.
 
 # primeiro teste para classes diferentes
 elementos <- cut(dados$Precipitacao, breaks = c(0,4,26,56,86,131), labels = c("1","2","3","4","5"), 
@@ -135,18 +134,19 @@ cm4 <- ggplot(data.frame(x = c(1:18480), y = elementos), aes(x=x, y=y)) +
         axis.text = element_text(colour = "black", size=10),
         panel.grid.major.x = element_blank())
 
-ggarrange(cm2, cm3, cm4, nol = 1, nrow =3)
+ggarrange(cm2, cm3, cm4, nol = 1, nrow =3) # analisando os gráficos lado a lado
 
 # repetir os vetores "real" e "pred" para cada vez que rodar um novo vetor de elementos
 
 # 2 ####
 
+# leitura do banco de dados da questão 2
 BBAS3 <- as.data.frame(quantmod::getSymbols("BBAS3.SA", src = "yahoo", auto.assign = FALSE,
                                             from = '2023-01-01', 
                                             to = '2023-12-31', return.class = 'xts')) %>% 
   mutate(t = seq(0,1, length.out = 248))
 
-BB=BBAS3$BBAS3.SA.Close %>% as.vector()
+BB=BBAS3$BBAS3.SA.Close %>% as.vector() # vetor com os valores da variável de interesse
 
 #plot(BBAS3$t, BB, type="l", xlim = c(0,1))
 
@@ -215,11 +215,11 @@ ggplot(data.frame(x = tempos, y = N), aes(x=x, y=y)) +
 # > b ####
 
 pdisc <- function(h, historico, taxa, processo){
-  xtk <- numeric(length(historico))
-  xtk[1] <- historico[1]
+  xtk <- numeric(length(historico)) #gerando um vetor de 0 do tamanho da amostra
+  xtk[1] <- historico[1] # recebe o primeiro valor do historico do processo
   for (k in 2:(n-1)) {
-    xtk[k] <- xtk[k - 1] - taxa * h * sum(historico[1:(k - 1)]) + processo[k]
-  }
+    xtk[k] <- xtk[k - 1] - taxa * h * sum(xtk[1:(k - 1)]) + processo[k] # equação dada no item
+  } # usando o h, pois a diferença dos entre os tempo é a mesma para todas eles sendo assim a distancia entre elas será h = 1/n
   return(xtk)
 }
 
@@ -228,8 +228,8 @@ head(pdisc(h= 1/248, historico = BB, taxa = 0.5, processo = rnorm(248)), 5) # te
 head(pdisc(h = 1/248, historico = BB, taxa = 0.5, processo = rpois(248,1)),5) # testando se a função deu certo para o processo de poisson
 # > c ####
 
-# Browniano e poisson, tem que ser definido no parâmetro tipo qual processo será usado
-# Caso seja utilizado o processo de Poisson, é necessário declarar o lambda
+# Browniano e poisson, tem que ser definido qual processo será utilizado no parâmetro "tipo" 
+# Caso seja utilizado o processo de Poisson, é necessário declarar o lambda, se for diferente de 1
 
 processo_simulado <- function(theta, dado_observado, tipo = "Browniano", lambda=1) {
   n <- length(dado_observado)
@@ -256,11 +256,13 @@ soma_de_quadrados <- function(theta, dado_observado, tipo = "Browniano", lambda=
 }
 
 # Estimação do parâmetro theta para o Movimento Browniano
+# utilizando a função optimize para achar o valor mínimo para theta, i.e., utilizamos
+# o método dos mínimos quadrados para estimação dos thetas
 set.seed(1)
 theta_chapeu_MB <- optimize(f = soma_de_quadrados, 
                             interval = c(0, 1e6), 
                             dado_observado = as.numeric(BB),
-                            tol = .01)$minimum
+                            tol = .01)$minimum 
 
 # Estimação do parâmetro theta para o Processo Poisson
 set.seed(1)
@@ -298,33 +300,33 @@ theta_chapeu_PP # processo poisson
 # > d ####
 
 set.seed(1)
-x_simulado_mb <- pdisc(h=1/248, historico = BB, taxa = theta_chapeu_MB, processo = rnorm(248))
+x_simulado_mb <- pdisc(h=1/248, historico = BB, taxa = theta_chapeu_MB, processo = rnorm(248)) # modelo ajustado - movimento browniano
 residuos_mb <- BB - x_simulado_mb
 hist(residuos_mb)
 qqnorm(residuos_mb)
 qqline(residuos_mb)
-shapiro.test(residuos_mb)
+shapiro.test(residuos_mb) #teste de Shapiro-Wil para normalidade
 
 set.seed(1)
-x_simulado_pp <- pdisc(h=1/248, historico = BB, taxa = theta_chapeu_PP, processo = rpois(248,1))
+x_simulado_pp <- pdisc(h=1/248, historico = BB, taxa = theta_chapeu_PP, processo = rpois(248,1)) # modelo ajustado - poisson
 residuos_pp <- BB - x_simulado_pp
 hist(residuos_pp)
 qqnorm(residuos_pp)
 qqline(residuos_pp)
-shapiro.test(residuos_pp)
+shapiro.test(residuos_pp) 
 
 # plot(x_simulado_mb, type = "l")
 # plot(x_simulado_pp, type = "l")
 
 # teste atual
-pdisc <- function(h, historico, taxa, processo){
-  xtk <- numeric(length(historico))
-  xtk[1] <- historico[1]
-  for (k in 2:(n-1)) {
-    xtk[k] <- xtk[k - 1] - taxa * h * sum(historico[1:(k - 1)]) + processo[k]
-  }
-  return(xtk)
-}
+# pdisc <- function(h, historico, taxa, processo){
+#   xtk <- numeric(length(historico))
+#   xtk[1] <- historico[1]
+#   for (k in 2:(n-1)) {
+#     xtk[k] <- xtk[k - 1] - taxa * h * sum(xtk[1:(k - 1)]) + processo[k]
+#   }
+#   return(xtk)
+# }
 
 
 # # estávamos usando esse, só que os valores estavam extremamente, 
@@ -342,11 +344,14 @@ pdisc <- function(h, historico, taxa, processo){
 processos <- data.frame(indice = seq(0, 1, length.out= (248)),
                         acoes = BB,
                         MB = x_simulado_mb,
-                        PP = x_simulado_pp)
+                        PP = x_simulado_pp) # juntando os valores reais, gerados pela poisson e pelo browniano, com os tempos em um data.frame
 
-processos <- processos %>% pivot_longer(!indice, names_to = "Modelo", values_to = "Processos")
-ppoisson <- processos %>% filter(Modelo != "MB")
-pbrown <- processos %>% filter(Modelo != "PP")
+processos <- processos %>% 
+  pivot_longer(!indice, names_to = "Modelo", values_to = "Processos") # colocando os valores dos modelos todos em uma coluna, para facilitar a plotagem
+ppoisson <- processos %>% 
+  filter(Modelo != "MB")
+pbrown <- processos %>% 
+  filter(Modelo != "PP")
 
 (g1 <- ggplot(data = pbrown, aes(x = indice, y= Processos, color = Modelo, group = Modelo)) +
     geom_line(size = 1)+
@@ -400,16 +405,12 @@ eqm_pp <- mean(residuos_pp^2)
 
 eqm_mb
 eqm_pp
-eqm_mb < eqm_pp
+eqm_mb < eqm_pp # vendo qual é menor
 
 # Teorica -> respondida no markdown
 
 # > g ####
-
-BB24 <- as.data.frame(quantmod::getSymbols("BBAS3.SA", src = "yahoo", auto.assign = FALSE,
-                                            from = '2024-01-01', 
-                                            to = '2024-01-15', return.class = 'xts'))
-fechamento <- BB24$BBAS3.SA.Close %>% as.vector()
+#repetimos o que fizemos nos itens anteriores
 
 BB24 <- as.data.frame(quantmod::getSymbols("BBAS3.SA", src = "yahoo", auto.assign = FALSE,
                                            from = '2024-01-01', 

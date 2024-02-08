@@ -291,7 +291,7 @@ pdisc <- function(h, historico, taxa, processo){
   xtk <- numeric(length(historico))
   xtk[1] <- historico[1]
   for (k in 2:(n-1)) {
-    xtk[k] <- xtk[k - 1] - taxa * h * sum(historico[1:(k - 1)]) + processo[k]
+    xtk[k] <- xtk[k - 1] - taxa * h * sum(xtk[1:(k - 1)]) + processo[k]
   }
   return(xtk)
 }
