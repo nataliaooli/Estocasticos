@@ -26,7 +26,7 @@ pacman::p_load(tidyverse, MASS, quantmod, markovchain, ggplot2, ggpubr)
 
 ### (a) A partir da variável precipitação, crie um processo com espaço de estados contendo 5 elementos.
 
-```{r, include=FALSE}
+```{r}
 dados <- read.delim("dados.txt", sep =";")[,-c(5,6,7)]
 dados$Precipitacao <- as.numeric(dados$Precipitacao)
 dados <- dados %>% 
@@ -36,7 +36,7 @@ dados <- dados %>%
   
 ggplot(dados, aes(x= Tempo, y = Precipitacao, group = 1))+
   geom_line()+
-  labs(title = "Precipitação ao longo dos dias (de 01/01/1964 a 31/12/2014)",
+  labs(title = "Precipitação ao longo dos dias \n (01/01/1964 a 31/12/2014)",
        y = "Precipitação",
        x = "Tempo")+
   scale_y_continuous(limits = c(0,131), breaks = seq(0,131,131/5))+
@@ -54,12 +54,6 @@ ggplot(dados, aes(x= Tempo, y = Precipitacao, group = 1))+
 
 ```{r}
 elementos <- cut(dados$Precipitacao, breaks = 5, labels  = c("1","2","3","4","5"), levels = labels)
-# ele me dá as seguintes classes: 
-# estado 1 = (-0.131,26.2]
-# estado 2 = (26.2, 52.4]
-# estado 3 = (52.4,78.6]
-# estado 4 = (78.6,105]
-# estado 5 = (105,131]
 
 ggplot(data.frame(x = c(1:18480), y = elementos), aes(x=x, y=y)) +
   geom_point()+
@@ -100,7 +94,10 @@ P1
 Fit = markovchainFit(data = estados,confidencelevel = 0.95)
 round(Fit[["estimate"]]@transitionMatrix,2)
 
-plot(mc,  width = 12, height = 8)
+mc = Fit$estimate
+#summary(mc)
+
+plot(mc)
 ```
 
 ### (c) Predizer os próximos símbolos do processo e avaliar a qualidade da estimação utilizando os 10 dias finais. (Dica: uma possibilidade é fazer uma matriz de confusão)
@@ -120,12 +117,13 @@ elementos <- cut(dados$Precipitacao, breaks = c(0,4,26,56,86,131), labels = c("1
 cm2 <- ggplot(data.frame(x = c(1:18480), y = elementos), aes(x=x, y=y)) +
   geom_point()+
   labs(y = "Estados",
-       x = "")+
+       x = "Tempo",
+       title = "Teste 1")+
   scale_x_continuous(limits = c(0,18480), breaks = seq(0,18480,2000))+
   theme_bw()+
   theme(axis.title.y=element_text(size=12),
         axis.title.x = element_text(size=12),
-        axis.text = element_blank(),
+        axis.text = element_text(colour = "black", size=10),
         panel.grid.major.x = element_blank())
 
 # segundo teste para classes diferentes
@@ -135,12 +133,13 @@ elementos <- cut(dados$Precipitacao, breaks = c(0,4,24,54,80,131),
 cm3 <- ggplot(data.frame(x = c(1:18480), y = elementos), aes(x=x, y=y)) +
   geom_point()+
   labs(y = "Estados",
-       x = "")+
+       x = "Tempo",
+       title = "Teste 2")+
   scale_x_continuous(limits = c(0,18480), breaks = seq(0,18480,2000))+
   theme_bw()+
   theme(axis.title.y=element_text(size=12),
         axis.title.x = element_text(size=12),
-        axis.text = element_blank(),
+        axis.text = element_text(colour = "black", size=10),
         panel.grid.major.x = element_blank())
 
 # quarto e último teste para classes diferentes
@@ -151,7 +150,8 @@ elementos <- cut(dados$Precipitacao, breaks = c(0,3,23,43,73,131),
 cm4 <- ggplot(data.frame(x = c(1:18480), y = elementos), aes(x=x, y=y)) +
   geom_point()+
   labs(y = "Estados",
-       x = "Tempo")+
+       x = "Tempo",
+       title = "Teste 3")+
   scale_x_continuous(limits = c(0,18480), breaks = seq(0,18480,2000))+
   theme_bw()+
   theme(axis.title.y=element_text(size=12),
@@ -159,7 +159,9 @@ cm4 <- ggplot(data.frame(x = c(1:18480), y = elementos), aes(x=x, y=y)) +
         axis.text = element_text(colour = "black", size=10),
         panel.grid.major.x = element_blank())
 
-ggarrange(cm2, cm3, cm4, nol = 1, nrow =3)
+cm2
+cm3
+cm4
 ```
 
 Há uma sutil mudança entre os testes para definição de estados, então seguimos com o último apresentado em que cada estado engloba os seguintes intervalos/classes:
@@ -212,7 +214,7 @@ BB=BBAS3$BBAS3.SA.Close %>% as.vector()
 
 ggplot(BBAS3, aes(x = t, y = BBAS3.SA.Close))+
   geom_line()+
-  labs(title = "Preços de Fechamento dos valores das ações do BBAS3 no ano de 2023",
+  labs(title = "Preços de Fechamento dos valores \n das ações do BBAS3 no ano de 2023",
        y = "Preços",
        x = "Tempo")+
   scale_x_continuous(limits = c(0,1))+
@@ -225,9 +227,7 @@ ggplot(BBAS3, aes(x = t, y = BBAS3.SA.Close))+
         panel.grid.major.x = element_blank())
 ```
 
-### (a) Simule uma trajetória do movimento Browniano B = {B(t); t ∈ [0, 1]} e uma do
-
-processo de Poisson N = {N(t); t ∈ [0, 1]} com taxa λ = 1 contendo a mesma quantidade de pontos que a base de dados.
+### (a) Simule uma trajetória do movimento Browniano B = {B(t); t ∈ [0, 1]} e uma do processo de Poisson N = {N(t); t ∈ [0, 1]} com taxa λ = 1 contendo a mesma quantidade de pontos que a base de dados.
 
 ```{r}
 # movimento browniano
@@ -238,17 +238,20 @@ simulatebrown <-  function(n,h) {
   return(list(mb = B, tempos= times))
 }
 
+set.seed(1)
 a <- simulatebrown(n=248, h=1/248)
 
 ggplot(data.frame(x = a$tempos, y = a$mb), aes(x=x, y=y)) +
   geom_line()+
   labs(y = "Estados",
-       x = "Tempo")+
+       x = "Tempo",
+       title = "Movimento Browniano")+
   scale_x_continuous(limits = c(0,1))+
   theme_bw()+
   theme(axis.title.y=element_text(size=12),
         axis.title.x = element_text(size=12),
         axis.text = element_text(colour = "black", size=10),
+        plot.title = element_text(hjust = 0.5),
         panel.grid.major.x = element_blank())
 ```
 
@@ -260,23 +263,24 @@ tempos=seq(0,1,by=incremento)
 n=length(tempos)
 taxa=1
 
+set.seed(24)
 N=c(0,cumsum(rpois(n-1, lambda=taxa*incremento)))
 
 ggplot(data.frame(x = tempos, y = N), aes(x=x, y=y)) +
   geom_line()+
   labs(y = "Estados",
-       x = "Tempo")+
+       x = "Tempo", 
+       title = "Processo de Poisson")+
   scale_x_continuous(limits = c(0,1))+
   theme_bw()+
   theme(axis.title.y=element_text(size=12),
         axis.title.x = element_text(size=12),
         axis.text = element_text(colour = "black", size=10),
+        plot.title = element_text(hjust = 0.5),
         panel.grid.major.x = element_blank())
 ```
 
-### (b)
-
-Considere o processo discretizado
+### (b) Considere o processo discretizado
 
 $$ X(t_k) = X(t_{k-1}) - \theta \sum_{j=0}^{k-1} X(t_j)(t_j - t_{j-1}) + \xi(t_k). \quad (1) $$
 
@@ -284,8 +288,11 @@ Programe uma função que receba os tempos $t_0 < \cdots < t_{k-1}$, o históric
 
 ```{r}
 pdisc <- function(h, historico, taxa, processo){
-  soma = h * sum(historico) 
-  xtk = historico[length(historico)] - taxa * soma + processo
+  xtk <- numeric(length(historico))
+  xtk[1] <- historico[1]
+  for (k in 2:(n-1)) {
+    xtk[k] <- xtk[k - 1] - taxa * h * sum(historico[1:(k - 1)]) + processo[k]
+  }
   return(xtk)
 }
 
@@ -330,22 +337,24 @@ soma_de_quadrados <- function(theta, dado_observado, tipo = "Browniano", lambda=
 ```{r}
 # Estimação do parâmetro theta para o Movimento Browniano
 set.seed(1)
-theta_chapeu_MB <- optimize(f = soma_de_quadrados, interval = c(0, 1), 
+theta_chapeu_MB <- optimize(f = soma_de_quadrados, 
+                            interval = c(0, 1e6), 
                          dado_observado = as.numeric(BB),
-                         tol = .1)$minimum
+                         tol = .01)$minimum
 
 # Estimação do parâmetro theta para o Processo Poisson
 set.seed(1)
-theta_chapeu_PP <- optimize(f = soma_de_quadrados, interval = c(0, 1), 
+theta_chapeu_PP <- optimize(f = soma_de_quadrados, 
+                            interval = c(0, 1e6), 
                             dado_observado = as.numeric(BB), 
                             tipo = "Poisson", lambda=1,
-                            tol = .1)$minimum
+                            tol = .01)$minimum
 
 theta_chapeu_MB # movimento browniano
 theta_chapeu_PP # processo poisson
 ```
 
-Obtivemos os seguintes valores, considerando uma acurácia de 10%: $\theta_{MB} = 0.05683661$ e $\theta_{PP} = 0.03623548$
+Obtivemos os seguintes valores, considerando uma acurácia de 1%: $\theta_{MB} = 0.006087756$ e $\theta_{PP} = 0.04072724$
 
 ### (d) Avalie os resíduos (diferença entre processo observado e modelo ajustado) do ajuste. (Dica: podem ser feitos testes de normalidade dos resíduos, histograma, boxplot e/ou Normal-qq plot).
 
@@ -353,21 +362,27 @@ Obtivemos os seguintes valores, considerando uma acurácia de 10%: $\theta_{MB} 
 set.seed(1)
 x_simulado_mb <- pdisc(h=1/248, historico = BB, taxa = theta_chapeu_MB, processo = rnorm(248))
 residuos_mb <- BB - x_simulado_mb
+hist(residuos_mb)
 qqnorm(residuos_mb)
 qqline(residuos_mb)
 shapiro.test(residuos_mb)
+```
 
+```{r}
 set.seed(1)
 x_simulado_pp <- pdisc(h=1/248, historico = BB, taxa = theta_chapeu_PP, processo = rpois(248,1))
 residuos_pp <- BB - x_simulado_pp
+hist(residuos_pp)
 qqnorm(residuos_pp)
 qqline(residuos_pp)
 shapiro.test(residuos_pp)
 ```
 
+É possível observar que tanto o processo simulado para o Movimento Browniano quanto o Processo de Poisson os resíduos rejeitam normalidade, considerando um $\alpha = 0.01$, embora o p-valor dos resíduos do modelo de poisson seja um pouco menor que o browniano.
+
 ### (e) Represente graficamente o processo observado e os modelos ajustados.
 
-```{r}
+```{r, warning=F}
 processos <- data.frame(indice = seq(0, 1, length.out= (248)),
                         acoes = BB,
                         MB = x_simulado_mb,
@@ -382,9 +397,9 @@ g1 <- ggplot(data = pbrown, aes(x = indice, y= Processos, color = Modelo, group 
     scale_color_manual(values = c("acoes" = "red", "MB" = "#4682B4"), 
                      labels = c("acoes" = "Observado", "MB" = "Movimento Browniano"))+
     labs(title = "Real X Browniano",
-         y = "Valores dos modelos",
+         y = "Preços das ações",
          x = "Tempo")+
-    ylim(30, 60)+
+    #ylim(30, 60)+
     theme_light()+
     theme(axis.title.y=element_text(size=12),
           axis.title.x = element_text(size=12),
@@ -403,9 +418,9 @@ g2 <- ggplot(data = ppoisson, aes(x = indice, y= Processos, color = Modelo, grou
     scale_color_manual(values = c("acoes" = "red", "PP" = "#2E8B57"), 
                        labels = c("acoes" = "Observado", "PP" = "Processo de Poisson"))+
     labs(title = "Real X Poisson",
-         y = "",
+         y = "Preços das ações",
          x = "Tempo")+
-    ylim(30, 60)+
+    #ylim(30, 60)+
     theme_light()+
     theme(axis.title.y=element_text(size=12),
           axis.title.x = element_text(size=12),
@@ -423,7 +438,21 @@ g1
 g2
 ```
 
+O modelo Browniano até o momento 0.5 possui valores próximos do modelo observado, principalmente nos tempos iniciais. Já o modelo de Poisson parece se aproximar somente no instante 0. Sendo assim, uma primeira hipótese seria que o modelo Browniano se adequa melhor ao modelo observado.
+
 ### (f) Estabeleça qual o melhor modelo (utilizando movimento Browniano ou processo de Poisson).
+
+```{r}
+# Calculando o erro quadrático médio (EQM) para cada modelo
+eqm_mb <- mean(residuos_mb^2)
+eqm_pp <- mean(residuos_pp^2)
+
+eqm_mb
+eqm_pp
+eqm_mb < eqm_pp
+```
+
+Para estabeler o melhor modelo, foi realizada uma comparação entre os erros quadráticos médios de cada um, além de já ter sido realizado na (d) uma análise do resíduos. Como o EQM do Processo de Poisson deu maior que o do Movimento Browniano, então conclui-se que o modelo Browniano é melhor para os dados observados.
 
 ### (g) Leia os dados de 01/01/2024 a 15/01/2024. Utilize o modelo ajustado em (c) para predizer o valor das novas observações com base nos dados de 2023. Analise os resultados.
 
@@ -455,3 +484,49 @@ ggplot(BB24, aes(x= dias, y = BBAS3.SA.Close))+
         legend.text = element_text(size = 10))
     
 ```
+
+```{r}
+set.seed(1)
+mb2024 <- (pdisc(h=1/9, historico = fechamento, 
+                taxa = theta_chapeu_MB, 
+                processo = rnorm(9)))[1:9]
+residuos_2024 <- fechamento - mb2024
+hist(residuos_2024)
+qqnorm(residuos_2024)
+qqline(residuos_2024)
+shapiro.test(residuos_2024)
+```
+
+Os resíduos do modelo ajustado rejeitam normalidade a um nível de significância de 1%.
+
+```{r}
+acoes24 <- data.frame(indice = c(2,3,4,5,8,9,10,11,12),
+                      acoes = fechamento,
+                      MB = mb2024)
+
+acoes24 <- acoes24 %>% pivot_longer(!indice, names_to = "Modelo", values_to = "Processos")
+
+ggplot(data = acoes24, aes(x = indice, y= Processos, color = Modelo, group = Modelo)) +
+    geom_line(size = 1)+
+    geom_point(size = 1.5)+
+    scale_color_manual(values = c("acoes" = "red", "MB" = "#4682B4"), 
+                     labels = c("acoes" = "Modelo observado", "MB" = "Modelo ajustado"))+
+    labs(title = "Comparação entre \n Modelo observado e o Modelo ajustado",
+         y = "Preços das ações",
+         x = "Tempo")+
+    scale_x_continuous(limits = c(2,12), breaks=seq(2,12,2))+
+    scale_y_continuous(limits = c(53,57), breaks = c(53:57))+
+    theme_light()+
+    theme(axis.title.y=element_text(size=12),
+          axis.title.x = element_text(size=12),
+          axis.text = element_text(colour = "black", size=10),
+          title = element_text(size = 14),
+          plot.title = element_text(hjust = 0.5),
+          panel.border = element_blank(),
+          legend.position = "bottom",
+          legend.background = element_rect(colour = "black"),
+          legend.title = element_text(size = 12),
+          legend.text = element_text(size = 10))
+```
+
+Observando o gráfico acima, é possível concluir que o modelo ajustado compreende os padrões do modelo observado, mesmo com alguns pontos tendo algumas diferenças de valores e os resíduos rejeitando a normalidade. Talvez com uma amostra maior, seja possível realizar uma análise mais aprofundada e assim realizar uma avaliação dos parâmetros utilizados, para assim chegar em um ajuste melhor.
